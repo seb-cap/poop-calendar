@@ -7,6 +7,7 @@ import androidx.activity.compose.setContent
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.Button
 import androidx.compose.material.Surface
@@ -78,6 +79,7 @@ private fun setupPoopList(poop: Scanner) {
 fun Calendar() {
     var month by rememberSaveable {mutableStateOf(1)}
     var year by rememberSaveable {mutableStateOf(2020)}
+    var ping by remember {mutableStateOf(true)}
     Column (
         modifier = Modifier.fillMaxSize()
     ) {
@@ -114,12 +116,38 @@ fun Calendar() {
             } ) {Text(text = "Next")}
         }
 
-        Column (Modifier.weight(0.8f)) {
+        Column (Modifier.weight(0.6f)) {
             val startDay = 1 - computeStartingDay(month, year)
             for (wk in 0..5) {
-                Week(startDay + wk * 7, month, year, modifier = Modifier.weight(0.2f))
+                Week(startDay + wk * 7, month, year, ping, modifier = Modifier.weight(0.2f))
             }
         }
+
+        EditData(20, month, year, {ping = !ping}, modifier = Modifier.weight(0.2f))
+    }
+}
+
+@Composable
+fun EditData(day: Int, month: Int, year: Int, ping: () -> Unit, modifier: Modifier = Modifier) {
+    Row (modifier = modifier.fillMaxSize(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceEvenly
+    ) {
+        var daysPoops by remember {mutableStateOf(-1)}
+        daysPoops = all_poops[year-2020][month-1][day-1]
+        Text(text = monthFromInt(month) + " " + day + ", " + year, color = Color.White)
+        Button(onClick = {
+            daysPoops--
+            if (daysPoops < -1) daysPoops = -1
+            all_poops[year-2020][month-1][day-1] = daysPoops
+            ping()
+        }) { Text(text = " - ")}
+        Text(text = if (daysPoops == -1) "N/A" else daysPoops.toString(), color = Color.White)
+        Button(onClick = {
+            daysPoops++
+            all_poops[year-2020][month-1][day-1] = daysPoops
+            ping()
+        }) { Text(text = " + ")}
     }
 }
 
@@ -183,12 +211,12 @@ fun monthFromInt(month: Int): String {
 }
 
 @Composable
-fun Week(startDay: Int, month: Int, year: Int, modifier: Modifier = Modifier) {
+fun Week(startDay: Int, month: Int, year: Int, ping: Boolean, modifier: Modifier = Modifier) {
     Row (
         modifier = modifier.fillMaxWidth()
     ) {
         for (i in startDay..startDay + 6) {
-            Day(i, getPoops(i, month, year), month, year, modifier.fillMaxSize())
+            Day(i, getPoops(i, month, year), month, year, ping, modifier.fillMaxSize())
         }
     }
 }
@@ -199,7 +227,7 @@ private fun getPoops(day: Int, month: Int, year: Int): Int {
 }
 
 @Composable
-fun Day(number: Int, poops: Int, month: Int, year: Int, modifier: Modifier = Modifier) {
+fun Day(number: Int, poops: Int, month: Int, year: Int, ping: Boolean, modifier: Modifier = Modifier) {
     val poopsColor = when (poops) {
         -1 -> Color.White
         0 -> Color(105, 240, 245)
@@ -213,6 +241,7 @@ fun Day(number: Int, poops: Int, month: Int, year: Int, modifier: Modifier = Mod
         modifier = modifier
             .background(color = poopsColor)
             .border(BorderStroke(1.dp, Color.Black))
+            .clickable {Log.d("clicked", "Clicked: " + monthFromInt(month) + " " + date + ", " + year)}
     ) {
         Text(text = date, color = Color.Black, modifier = Modifier.padding(3.dp))
     }
