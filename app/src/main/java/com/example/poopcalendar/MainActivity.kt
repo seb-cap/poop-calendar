@@ -18,7 +18,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.example.poopcalendar.ui.theme.PoopCalendarTheme
 import java.io.File
@@ -32,7 +31,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        val poop = File(this.filesDir, "temp.poop")
+        val poop = File(this.filesDir, "main.poop")
         poop.createNewFile()
         val poopScan = Scanner(poop)
         if (!poopScan.hasNext()) {
@@ -45,10 +44,31 @@ class MainActivity : ComponentActivity() {
                     modifier = Modifier.fillMaxSize(),
                     color = Color.DarkGray
                 ) {
-                    Calendar()
+                    Calendar { save() }
                 }
             }
         }
+    }
+
+    private fun save() {
+        val poops = File(this.filesDir, "main.poop")
+        var str = ""
+
+        all_poops.forEach { year ->
+            year.forEach { month ->
+                month.forEach { day ->
+                    str += if (day < 0 || day > 9) "n " else "$day "
+                }
+            }
+        }
+        Log.d("SPEED", "Done!")
+        poops.writeText(str)
+    }
+
+    override fun onStop() {
+        super.onStop()
+
+        save()
     }
 }
 
@@ -76,9 +96,11 @@ private fun setupPoopList(poop: Scanner) {
 }
 
 @Composable
-fun Calendar() {
+fun Calendar(save: () -> Unit) {
     var month by rememberSaveable {mutableStateOf(1)}
     var year by rememberSaveable {mutableStateOf(2020)}
+    var day by rememberSaveable {mutableStateOf(1)}
+    var jump by rememberSaveable {mutableStateOf(0)}
     var ping by remember {mutableStateOf(true)}
     Column (
         modifier = Modifier.fillMaxSize()
@@ -89,28 +111,49 @@ fun Calendar() {
             horizontalArrangement = Arrangement.SpaceEvenly
         ) {
             Button(onClick = {
-                month--
-                if (month < 1) {
-                    if (year > 2020) {
-                        month = 12
-                        year--
+                when (jump) {
+                    0 -> {
+                        month--
+                        day = 1
+                        if (month < 1) {
+                            if (year > 2020) {
+                                month = 12
+                                year--
+                            } else {
+                                month++
+                            }
+                        }
                     }
-                    else {
-                        month++
+                    1 -> {
+                        year--
+                        day = 1
+                        if (year < 2020) year = 2020
                     }
                 }
             } ) {Text(text = "Previous")}
 
-            Text(text = monthFromInt(month) + " " + year.toString(), textAlign = TextAlign.Center, color = Color.White)
+            Text(text = monthFromInt(month) + " " + year.toString(), textAlign = TextAlign.Center, color = Color.White,
+                modifier = Modifier.clickable {
+                    jump++
+                    if (jump > 1) jump = 0
+            })
             Button(onClick = {
-                month++
-                if (month > 12) {
-                    if (year < 2099) {
-                        month = 1
-                        year++
+                when (jump) {
+                    0 -> {
+                        month++
+                        day = 1
+                        if (month > 12) {
+                            if (year < 2099) {
+                                month = 1
+                                year++
+                            } else {
+                                month--
+                            }
+                        }
                     }
-                    else {
-                        month--
+                    1 -> {
+                        year++
+                        if (year > 2099) year = 2099
                     }
                 }
             } ) {Text(text = "Next")}
@@ -119,35 +162,50 @@ fun Calendar() {
         Column (Modifier.weight(0.6f)) {
             val startDay = 1 - computeStartingDay(month, year)
             for (wk in 0..5) {
-                Week(startDay + wk * 7, month, year, ping, modifier = Modifier.weight(0.2f))
+                Week(startDay + wk * 7, month, year, ping,
+                    {
+                        if (day > 0 && day < datesInMonth(month, year)) day = it
+                    },modifier = Modifier.weight(0.2f))
             }
         }
 
-        EditData(20, month, year, {ping = !ping}, modifier = Modifier.weight(0.2f))
+        EditData(day, month, year, {ping = !ping}, save, modifier = Modifier.weight(0.2f))
     }
 }
 
 @Composable
-fun EditData(day: Int, month: Int, year: Int, ping: () -> Unit, modifier: Modifier = Modifier) {
-    Row (modifier = modifier.fillMaxSize(),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceEvenly
-    ) {
-        var daysPoops by remember {mutableStateOf(-1)}
-        daysPoops = all_poops[year-2020][month-1][day-1]
-        Text(text = monthFromInt(month) + " " + day + ", " + year, color = Color.White)
-        Button(onClick = {
-            daysPoops--
-            if (daysPoops < -1) daysPoops = -1
-            all_poops[year-2020][month-1][day-1] = daysPoops
-            ping()
-        }) { Text(text = " - ")}
-        Text(text = if (daysPoops == -1) "N/A" else daysPoops.toString(), color = Color.White)
-        Button(onClick = {
-            daysPoops++
-            all_poops[year-2020][month-1][day-1] = daysPoops
-            ping()
-        }) { Text(text = " + ")}
+fun EditData(day: Int, month: Int, year: Int, ping: () -> Unit, save: () -> Unit, modifier: Modifier = Modifier) {
+    Column(modifier = modifier.fillMaxSize())
+    {
+        Row (modifier = modifier.weight(0.5f).fillMaxSize(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceEvenly
+        ) {
+            var daysPoops by remember {mutableStateOf(-1)}
+            daysPoops = all_poops[year-2020][month-1][day-1]
+
+            Text(text = monthFromInt(month) + " " + day + ", " + year, color = Color.White)
+
+            Button(onClick = {
+                daysPoops--
+                if (daysPoops < -1) daysPoops = -1
+                all_poops[year-2020][month-1][day-1] = daysPoops
+                ping()
+            }) { Text(text = " - ")}
+
+            Text(text = if (daysPoops == -1) "N/A" else daysPoops.toString(), color = Color.White)
+
+            Button(onClick = {
+                daysPoops++
+                if (daysPoops > 9) daysPoops = 9
+                all_poops[year-2020][month-1][day-1] = daysPoops
+                ping()
+            }) { Text(text = " + ")}
+        }
+
+        Button(onClick = save, modifier = modifier.weight(0.5f).fillMaxSize()) {
+            Text(text = "Save Calendar")
+        }
     }
 }
 
@@ -211,12 +269,12 @@ fun monthFromInt(month: Int): String {
 }
 
 @Composable
-fun Week(startDay: Int, month: Int, year: Int, ping: Boolean, modifier: Modifier = Modifier) {
+fun Week(startDay: Int, month: Int, year: Int, ping: Boolean, setDay: (Int) -> Unit, modifier: Modifier = Modifier) {
     Row (
         modifier = modifier.fillMaxWidth()
     ) {
         for (i in startDay..startDay + 6) {
-            Day(i, getPoops(i, month, year), month, year, ping, modifier.fillMaxSize())
+            Day(i, getPoops(i, month, year), month, year, ping, setDay, modifier.fillMaxSize())
         }
     }
 }
@@ -227,12 +285,12 @@ private fun getPoops(day: Int, month: Int, year: Int): Int {
 }
 
 @Composable
-fun Day(number: Int, poops: Int, month: Int, year: Int, ping: Boolean, modifier: Modifier = Modifier) {
+fun Day(number: Int, poops: Int, month: Int, year: Int, ping: Boolean, setDay: (Int) -> Unit, modifier: Modifier = Modifier) {
     val poopsColor = when (poops) {
         -1 -> Color.White
         0 -> Color(105, 240, 245)
         1 -> Color(255, 165, 0)
-        2 -> Color(255, 85, 0)
+        2 -> Color(255, 120, 0)
         3 -> Color.Red
         else -> Color.Magenta
     }
@@ -241,7 +299,7 @@ fun Day(number: Int, poops: Int, month: Int, year: Int, ping: Boolean, modifier:
         modifier = modifier
             .background(color = poopsColor)
             .border(BorderStroke(1.dp, Color.Black))
-            .clickable {Log.d("clicked", "Clicked: " + monthFromInt(month) + " " + date + ", " + year)}
+            .clickable {setDay(number)}
     ) {
         Text(text = date, color = Color.Black, modifier = Modifier.padding(3.dp))
     }
@@ -258,12 +316,4 @@ fun datesInMonth(month: Int, year: Int): Int {
 
 fun isLeapYear(year: Int): Boolean {
     return year % 400 == 0 || (year % 4 == 0 && year % 100 != 0)
-}
-
-@Preview(showBackground = true)
-@Composable
-fun DefaultPreview() {
-    PoopCalendarTheme {
-        Calendar()
-    }
 }
