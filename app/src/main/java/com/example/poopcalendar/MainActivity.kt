@@ -1,7 +1,6 @@
 package com.example.poopcalendar
 
 import android.os.Bundle
-import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.BorderStroke
@@ -61,14 +60,7 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
-        Log.d("SPEED", "Done!")
         poops.writeText(str)
-    }
-
-    override fun onStop() {
-        super.onStop()
-
-        save()
     }
 }
 
